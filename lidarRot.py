@@ -10,6 +10,10 @@ from gpiozero import Button
 from gpiozero.pins.pigpio import PiGPIOFactory
 from gpiozero import Servo
 import servoThing
+from multiprocessing import Process
+import sys
+
+rocket = 0
 
 ser = serial.Serial("/dev/ttyAMA0", 115200)
 
@@ -118,32 +122,33 @@ def lcd_string(message,line):
 
   for i in range(LCD_WIDTH):
     lcd_byte(ord(message[i]),LCD_CHR)
-
 def getTFminiData():
-    time.sleep(0.2)
-    count = ser.in_waiting
-    if count > 8:
-        recv = ser.read(9)   
-        ser.reset_input_buffer() 
+    while True:
+        global rocket
+        time.sleep(0.2)
+        count = ser.in_waiting
+        if count > 8:
+            recv = ser.read(9)   
+            ser.reset_input_buffer()
             # type(recv), 'str' in python2(recv[0] = 'Y'), 'bytes' in python3(recv[0] = 89)
             # type(recv[0]), 'str' in python2, 'int' in python3 
-        if recv[0] == 0x59 and recv[1] == 0x59:     #python3
-            distance = recv[2] + recv[3] * 256
-            strength = recv[4] + recv[5] * 256
-            lcd_string(str(distance),LCD_LINE_1)
-            ser.reset_input_buffer()
-while True:
-	getTFminiData()
-	servoThing.servoSweep()
-	
-
-
+            if recv[0] == 0x59 and recv[1] == 0x59:     #python3
+                distance = recv[2] + recv[3] * 256
+                strength = recv[4] + recv[5] * 256
+                lcd_string(str(distance),LCD_LINE_1)
+                print(distance)
+                ser.reset_input_buffer()
+        while rocket < 999999:
+            rocket += 1
 
 if __name__ == '__main__':
     try:
         if ser.is_open == False:
             ser.open()
-        getTFminiData()
+        p1 = Process(target = getTFminiData)
+        p1.start()
+        p2 = Process(target = servoThing.servoSweep)
+        p2.start()
     except KeyboardInterrupt:   # Ctrl+C
         if ser != None:
             ser.close()
