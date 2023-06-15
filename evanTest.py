@@ -1,4 +1,3 @@
-# Modified sample code taken from Evan Juras AKA edjeelectronics
 # Import packages
 import os
 import argparse
@@ -66,6 +65,12 @@ parser.add_argument('--resolution', help='Desired webcam resolution in WxH. If t
 parser.add_argument('--edgetpu', help='Use Coral Edge TPU Accelerator to speed up detection',
                     action='store_true')
 
+dangerZoneTL = (int(0* 1280),int(0)) #0*1280, 720*0.3
+dangerZoneBR = (int(1280*0.4),int(720)) #1280*0.3, 720
+
+inDangerZone = False
+dangerZoneCounter = 0
+
 args = parser.parse_args()
 
 MODEL_NAME = args.modeldir
@@ -76,7 +81,7 @@ resW, resH = args.resolution.split('x')
 imW, imH = int(resW), int(resH)
 use_TPU = args.edgetpu
 
-totalPeople = 0
+cars = 0
 
 # Import TensorFlow libraries
 # If tflite_runtime is installed, import interpreter from tflite_runtime, else import from regular tensorflow
@@ -135,7 +140,8 @@ width = input_details[0]['shape'][2]
 
 #custom variables
 counterValue = 0
-
+x = 0
+y = 0
 floating_model = (input_details[0]['dtype'] == np.float32)
 
 input_mean = 127.5
@@ -197,6 +203,9 @@ while True:
             ymax = int(min(imH,(boxes[i][2] * imH)))
             xmax = int(min(imW,(boxes[i][3] * imW)))
             
+
+            
+            
             cv2.rectangle(frame, (xmin,ymin), (xmax,ymax), (10, 255, 0), 2)
 
             # Draw label
@@ -207,30 +216,48 @@ while True:
             cv2.rectangle(frame, (xmin, label_ymin-labelSize[1]-10), (xmin+labelSize[0], label_ymin+baseLine-10), (255, 255, 255), cv2.FILLED) # Draw white box to put label text in
             cv2.putText(frame, label, (xmin, label_ymin-7), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 0), 2) # Draw label text
             
+            
             if object_name == 'person':
-                counterValue = 1
+                x = int(((boxes[0][1]+boxes[0][3])/2)*1280)
+                y = int(((boxes[0][0]+boxes[0][2])/2)*720)
+                print('detected')
+                if ((object_name == 'person') and ((x > dangerZoneTL[0]) and (x < dangerZoneBR[0]) and (y > dangerZoneTL[1]) and (y < dangerZoneBR[1]))):
+                    dangerZoneCounter = 1
+                    counterValue = 1
+                    inDangerZone = True
+                    print('howdy')
+
+                else:
+                    counterValue = 0
+                    dangerZoneCounter = 0
+                    inDangerZone = False
             else:
                 counterValue = 0
 			
-            totalPeople += counterValue
-			
-    cv2.putText(frame,'Total people:',(20,80),cv2.FONT_HERSHEY_PLAIN,2,(0,0,0),4,cv2.LINE_AA)
-    cv2.putText(frame,'Total people:',(20,80),cv2.FONT_HERSHEY_PLAIN,2,(230,230,230),2,cv2.LINE_AA)
-    cv2.putText(frame,'%.2f' % totalPeople,(260,85),cv2.FONT_HERSHEY_PLAIN,2.5,(0,0,0),4,cv2.LINE_AA)
-    cv2.putText(frame,'%.2f' % totalPeople,(260,85),cv2.FONT_HERSHEY_PLAIN,2.5,(85,195,105),2,cv2.LINE_AA)
+            cars += counterValue
+        
+    cv2.rectangle(frame, dangerZoneTL, dangerZoneBR, (255, 20, 20), 3)
+    cv2.putText(frame, "Danger Zone", (dangerZoneTL[0]+10, dangerZoneBR[0]-10), cv2.FONT_HERSHEY_PLAIN, 2, (255, 20, 255), 3, cv2.LINE_AA)		
+    cv2.putText(frame,'Total cars:',(20,80),cv2.FONT_HERSHEY_PLAIN,2,(0,0,0),4,cv2.LINE_AA)
+    cv2.putText(frame,'Total cars:',(20,80),cv2.FONT_HERSHEY_PLAIN,2,(230,230,230),2,cv2.LINE_AA)
+    cv2.putText(frame,'%.2f' % cars,(260,85),cv2.FONT_HERSHEY_PLAIN,2.5,(0,0,0),4,cv2.LINE_AA)
+    cv2.putText(frame,'%.2f' % cars,(260,85),cv2.FONT_HERSHEY_PLAIN,2.5,(85,195,105),2,cv2.LINE_AA)
+    cv2.putText(frame, str(x), (200, 50), cv2.FONT_HERSHEY_PLAIN, 2.5, (85, 100, 100), 2, cv2.LINE_AA)
+    cv2.putText(frame, str(y), (200, 100), cv2.FONT_HERSHEY_PLAIN, 2.5, (85, 100, 100), 2, cv2.LINE_AA)
+
 
     # Draw framerate in corner of frame
     cv2.putText(frame,'FPS: {0:.2f}'.format(frame_rate_calc),(30,50),cv2.FONT_HERSHEY_SIMPLEX,1,(255,255,0),2,cv2.LINE_AA)
 
     # All the results have been drawn on the frame, so it's time to display it.
-    cv2.imshow('Object detector', frame)
+    #cv2.imshow('Object detector', frame)
 
     # Calculate framerate
     t2 = cv2.getTickCount()
     time1 = (t2-t1)/freq
     frame_rate_calc= 1/time1
     
-    totalPeople = 0
+    cars = 0
     # Press 'q' to quit
     if cv2.waitKey(1) == ord('q'):
         break
@@ -238,4 +265,3 @@ while True:
 # Clean up
 cv2.destroyAllWindows()
 videostream.stop()
-
