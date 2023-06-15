@@ -13,6 +13,8 @@
 #
 # I added my own method of drawing boxes and labels using OpenCV.
 
+#2023 Evan Johnstone: modified original example code
+
 # Import packages
 import os
 import argparse
