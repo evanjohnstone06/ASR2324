@@ -16,6 +16,7 @@
 #2023 Evan Johnstone: modified original example code
 
 # Import packages
+# Import packages
 import os
 import argparse
 import cv2
@@ -246,16 +247,14 @@ while True:
                 y = int(((boxes[0][0]+boxes[0][2])/2)*720)
                 print('detected')
                 GPIO.output(11,GPIO.HIGH)
-	     	if datetime.datetime.now() - last < datetime.timedelta(seconds=2):
-                    if ((object_name == 'person') and ((x > dangerZoneTL[0]) and (x < dangerZoneBR[0]) and (y > dangerZoneTL[1]) and (y < dangerZoneBR[1]))):
-                        dangerZoneCounter = 1
-                        counterValue = 1
-                        inDangerZone = True
-                        print('howdy')
-                        last =  datetime.datetime.now()
-		    GPIO.output(11,GPIO.HIGH)
-                        print('sup')
-                        print(current)
+                if ((object_name == 'person') and ((x > dangerZoneTL[0]) and (x < dangerZoneBR[0]) and (y > dangerZoneTL[1]) and (y < dangerZoneBR[1]))):
+                    dangerZoneCounter = 1
+                    counterValue = 1
+                    inDangerZone = True
+                    print('howdy')
+                    current =  datetime.datetime.now()
+                    GPIO.output(11,GPIO.HIGH)
+                    time.sleep(0.5)
 
                 else:
                     counterValue = 0
