@@ -24,6 +24,9 @@ import sys
 import time
 from threading import Thread
 import importlib.util
+import RPi.GPIO as GPIO
+import datetime
+
 
 # Define VideoStream class to handle streaming of video from webcam in separate processing thread
 # Source - Adrian Rosebrock, PyImageSearch: https://www.pyimagesearch.com/2015/12/28/increasing-raspberry-pi-fps-with-python-and-opencv/
@@ -161,6 +164,10 @@ x = 0
 y = 0
 floating_model = (input_details[0]['dtype'] == np.float32)
 
+GPIO.setmode(GPIO.BCM)
+GPIO.setwarnings(False)
+GPIO.setup(11,GPIO.OUT)
+
 input_mean = 127.5
 input_std = 127.5
 
@@ -238,18 +245,27 @@ while True:
                 x = int(((boxes[0][1]+boxes[0][3])/2)*1280)
                 y = int(((boxes[0][0]+boxes[0][2])/2)*720)
                 print('detected')
+                GPIO.output(11,GPIO.HIGH)
                 if ((object_name == 'person') and ((x > dangerZoneTL[0]) and (x < dangerZoneBR[0]) and (y > dangerZoneTL[1]) and (y < dangerZoneBR[1]))):
                     dangerZoneCounter = 1
                     counterValue = 1
                     inDangerZone = True
                     print('howdy')
+                    current =  datetime.datetime.now()
+                    GPIO.output(11,GPIO.HIGH)
+                    if datetime.datetime.now() - current < datetime.timedelta(seconds=2):
+                        GPIO.output(11,GPIO.HIGH)
+                        print('sup')
+                        print(current)
 
                 else:
                     counterValue = 0
                     dangerZoneCounter = 0
                     inDangerZone = False
+                    GPIO.output(11,GPIO.LOW)
             else:
                 counterValue = 0
+                GPIO.output(11, GPIO.LOW)
 			
             cars += counterValue
         
