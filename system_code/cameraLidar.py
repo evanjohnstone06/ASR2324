@@ -30,35 +30,40 @@ GPIO.setwarnings(False)
 GPIO.setup(11,GPIO.OUT)
 GPIO.setup(10, GPIO.OUT)
 GPIO.setup(9, GPIO.OUT)
+GPIO_TRIGECHO = 15
+GPIO.setup(GPIO_TRIGECHO,GPIO.OUT)
+GPIO.output(GPIO_TRIGECHO, False)
 rocket = 0
 stopS = False
 factory = PiGPIOFactory()
 serv = Servo(18, pin_factory = factory, min_pulse_width = 0.5/1000, max_pulse_width = 1.5/1000)
-ser = serial.Serial("/dev/ttyAMA0", 115200)
+continuous=0
+def ultrasonicMeasure():
+    GPIO.output(GPIO_TRIGECHO, True)
+    time.sleep(0.00001)
+    GPIO.output(GPIO_TRIGECHO, False)
+    start = time.time()
 
-def getTFminiData():
-    while True:
-        global rocket
-        time.sleep(0.2)
-        count = ser.in_waiting
-        if count > 8:
-            recv = ser.read(9)   
-            ser.reset_input_buffer()
-            # type(recv), 'str' in python2(recv[0] = 'Y'), 'bytes' in python3(recv[0] = 89)
-            # type(recv[0]), 'str' in python2, 'int' in python3 
-            if recv[0] == 0x59 and recv[1] == 0x59:     #python3
-                distance = recv[2] + recv[3] * 256
-                print(distance)
-                ser.reset_input_buffer()
-                #return distance
-                if distance <= 200:
-                    #when share.buf[0] is set to 1, it tells the servo to stop
-                    share.buf[0]=1
-                else:
-                    share.buf[0]=0
-        while rocket < 999999:
-            rocket += 1
+    GPIO.setup(GPIO_TRIGECHO, GPIO.IN)
+    while GPIO.input(GPIO_TRIGECHO)==0:
+        start = time.time()
 
+    while GPIO.input(GPIO_TRIGECHO)==1:
+        stop = time.time()
+  
+    GPIO.setup(GPIO_TRIGECHO, GPIO.OUT)
+    GPIO.output(GPIO_TRIGECHO, False)
+
+    elapsed = stop-start
+    distance = (elapsed * 34300)/2.0
+    if distance<500:
+        continuous+=1
+    else:
+        continuous=0
+    if continuous>=5:
+        share.buf[0]=1
+    else:
+        share.buf[0]=0
 def servoSweep():
     servStage = 1
     #i = 0
@@ -373,12 +378,10 @@ if __name__ == '__main__':
             ser.open()
         p1 = Process(target = getTFminiData)
         p1.start()
-        p2 = Process(target = servoSweep)
+        p2 = Process(target=ultrasonicMeasure)
         p2.start()
-        p3 = Process(target=runCamera)
+        p3 = Process(target=turnOnTheLights)
         p3.start()
-        p4 = Process(target=turnOnTheLights)
-        p4.start()
     except KeyboardInterrupt:   # Ctrl+C
         if ser != None:
             ser.close()
