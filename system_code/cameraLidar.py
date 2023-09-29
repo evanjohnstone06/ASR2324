@@ -34,8 +34,8 @@ rocket = 0
 stopS = False
 factory = PiGPIOFactory()
 serv = Servo(18, pin_factory = factory, min_pulse_width = 0.5/1000, max_pulse_width = 1.5/1000)
-continuous=0
 def ultrasonicMeasure():
+    continuous=0
     GPIO_TRIGECHO = 15
     GPIO.setup(GPIO_TRIGECHO,GPIO.OUT)
     GPIO.output(GPIO_TRIGECHO, False)
@@ -379,17 +379,13 @@ def turnOnTheLights():
 if __name__ == '__main__':
     try:
         share=SharedMemory(create=True,size=1024)
-        if ser.is_open == False:
-            ser.open()
-        p1 = Process(target = getTFminiData)
+        p1 = Process(target = ultrasonicMeasure)
         p1.start()
-        p2 = Process(target=ultrasonicMeasure)
+        p2 = Process(target=runCamera)
         p2.start()
         p3 = Process(target=turnOnTheLights)
         p3.start()
     except KeyboardInterrupt:   # Ctrl+C
-        if ser != None:
-            ser.close()
 # Clean up
-cv2.destroyAllWindows()
+        cv2.destroyAllWindows()
 #videostream.stop()
