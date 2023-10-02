@@ -34,31 +34,37 @@ rocket = 0
 stopS = False
 factory = PiGPIOFactory()
 serv = Servo(18, pin_factory = factory, min_pulse_width = 0.5/1000, max_pulse_width = 1.5/1000)
-ser = serial.Serial("/dev/ttyAMA0", 115200)
-
-def getTFminiData():
+def ultrasonicMeasure():
+    continuous=0
+    GPIO_TRIGECHO = 15
+    GPIO.setup(GPIO_TRIGECHO,GPIO.OUT)
+    GPIO.output(GPIO_TRIGECHO, False)
     while True:
-        global rocket
-        time.sleep(0.2)
-        count = ser.in_waiting
-        if count > 8:
-            recv = ser.read(9)   
-            ser.reset_input_buffer()
-            # type(recv), 'str' in python2(recv[0] = 'Y'), 'bytes' in python3(recv[0] = 89)
-            # type(recv[0]), 'str' in python2, 'int' in python3 
-            if recv[0] == 0x59 and recv[1] == 0x59:     #python3
-                distance = recv[2] + recv[3] * 256
-                print(distance)
-                ser.reset_input_buffer()
-                #return distance
-                if distance <= 200:
-                    #when share.buf[0] is set to 1, it tells the servo to stop
-                    share.buf[0]=1
-                else:
-                    share.buf[0]=0
-        while rocket < 999999:
-            rocket += 1
+        GPIO.output(GPIO_TRIGECHO, True)
+        time.sleep(0.00001)
+        GPIO.output(GPIO_TRIGECHO, False)
+        start = time.time()
 
+        GPIO.setup(GPIO_TRIGECHO, GPIO.IN)
+        while GPIO.input(GPIO_TRIGECHO)==0:
+            start = time.time()
+
+        while GPIO.input(GPIO_TRIGECHO)==1:
+            stop = time.time()
+  
+        GPIO.setup(GPIO_TRIGECHO, GPIO.OUT)
+        GPIO.output(GPIO_TRIGECHO, False)
+
+        elapsed = stop-start
+        distance = (elapsed * 34300)/2.0
+        if distance<500:
+            continuous+=1
+        else:
+            continuous=0
+        if continuous>=5:
+            share.buf[0]=1
+        else:
+            share.buf[0]=0
 def servoSweep():
     servStage = 1
     #i = 0
@@ -137,7 +143,7 @@ def runCamera():
                         action='store_true')
     
     dangerZoneTL = (int(0* 1280),int(0)) #0*1280, 720*0.3
-    dangerZoneBR = (int(1280),int(720)) #1280*0.3, 720
+    dangerZoneBR = (int(850),int(720)) #1280*0.3, 720
     
     inDangerZone = False
     dangerZoneCounter = 0
@@ -299,28 +305,18 @@ def runCamera():
                     y = int(((boxes[0][0]+boxes[0][2])/2)*720)
                     #print('detected')
                     #GPIO.output(11,GPIO.HIGH)
-                    if ((object_name == 'person') and ((x > dangerZoneTL[0]) and (x < dangerZoneBR[0]) and (y > dangerZoneTL[1]) and (y < dangerZoneBR[1]))):
+                    if ((x > dangerZoneTL[0]) and (x < dangerZoneBR[0]) and (y > dangerZoneTL[1]) and (y < dangerZoneBR[1]) and (ymax-ymin<600) and (xmax-xmin<800)):
                         dangerZoneCounter = 1
-                        counterValue = 1
-                        inDangerZone = True
-                        share.buf[1]=1
-                        #print('howdy')
-                       
-    
-                        
-    
                     else:
-                        counterValue = 0
-                        last = datetime.datetime.now()
                         dangerZoneCounter = 0
-                        inDangerZone = False
-                        share.buf[1]=0
                 else:
-                    counterValue = 0
-                    share.buf[1]=0
-                    #last = datetime.datetime.now()
+                    dangerZoneCounter = 0
                 
-                cars += counterValue
+                cars += dangerZoneCounter
+                if(cars>0):
+                    share.buf[1]=1
+                elif(cars==0):
+                    share.buf[1]=0
             
         cv2.rectangle(frame_f, dangerZoneTL, dangerZoneBR, (255, 20, 20), 3)
         cv2.putText(frame_f, "Danger Zone", (dangerZoneTL[0]+10, dangerZoneBR[0]-10), cv2.FONT_HERSHEY_PLAIN, 2, (255, 20, 255), 3, cv2.LINE_AA)		
@@ -336,7 +332,7 @@ def runCamera():
         cv2.putText(frame_f,'FPS: {0:.2f}'.format(frame_rate_calc),(30,50),cv2.FONT_HERSHEY_SIMPLEX,1,(255,255,0),2,cv2.LINE_AA)
     
         # All the results have been drawn on the frame, so it's time to display it.
-        #cv2.imshow('Object detector', frame_f)
+        cv2.imshow('Object detector', frame_f)
     
         # Calculate framerate
         t2 = cv2.getTickCount()
@@ -350,6 +346,7 @@ def runCamera():
 def turnOnTheLights():
     last = datetime.datetime.now()
     while True:
+        '''
         if (share.buf[1]==1) and (share.buf[0] == 1):
             GPIO.output(11, GPIO.HIGH)
             GPIO.output(9, GPIO.LOW)
@@ -366,22 +363,29 @@ def turnOnTheLights():
                 GPIO.output(11,GPIO.LOW)
                 GPIO.output(9, GPIO.LOW)
                 print('nothing')
+        '''
+        if(share.buf[0]==1):
+            GPIO.output(11, GPIO.HIGH)
+            GPIO.output(9, GPIO.LOW)
+            GPIO.output(10, GPIO.LOW)
+        elif(share.buf[1]==1):
+            GPIO.output(11, GPIO.LOW)
+            GPIO.output(9, GPIO.HIGH)
+            GPIO.output(10, GPIO.LOW)
+        elif(share.buf[0]==1 and share.buf[1]==0):
+            GPIO.output(11, GPIO.LOW)
+            GPIO.output(9, GPIO.LOW)
+            GPIO.output(10, GPIO.HIGH)
 if __name__ == '__main__':
     try:
         share=SharedMemory(create=True,size=1024)
-        if ser.is_open == False:
-            ser.open()
-        p1 = Process(target = getTFminiData)
+        p1 = Process(target = ultrasonicMeasure)
         p1.start()
-        p2 = Process(target = servoSweep)
+        p2 = Process(target=runCamera)
         p2.start()
-        p3 = Process(target=runCamera)
+        p3 = Process(target=turnOnTheLights)
         p3.start()
-        p4 = Process(target=turnOnTheLights)
-        p4.start()
     except KeyboardInterrupt:   # Ctrl+C
-        if ser != None:
-            ser.close()
 # Clean up
-cv2.destroyAllWindows()
+        cv2.destroyAllWindows()
 #videostream.stop()
